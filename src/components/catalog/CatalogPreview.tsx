@@ -320,7 +320,7 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
           {hasSocial && (
             <div className="flex flex-col items-center gap-3 mt-2">
               <p style={{ color: subColor }} className="text-xs font-semibold tracking-widest uppercase">
-                S�guenos
+                Síguenos
               </p>
               <div className="flex gap-6">
                 {catalog.instagram && (
@@ -727,7 +727,7 @@ function ProductModal({
             style={{ color: subColor }}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/10 text-xl font-light transition-colors"
           >
-            �
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="2" y1="2" x2="14" y2="14"/><line x1="14" y1="2" x2="2" y2="14"/></svg>
           </button>
         </div>
 
@@ -746,13 +746,13 @@ function ProductModal({
                   onClick={prev}
                   className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition-colors"
                 >
-                  �
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="10 12 6 8 10 4"/></svg>
                 </button>
                 <button
                   onClick={next}
                   className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition-colors"
                 >
-                  �
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 12 10 8 6 4"/></svg>
                 </button>
                 <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
                   {images.map((_, i) => (
