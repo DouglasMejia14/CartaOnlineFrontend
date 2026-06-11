@@ -51,6 +51,7 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
   const align = theme.headerAlign ?? 'center';
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
 
   const textColor = isDark ? "#ffffff" : "#111827";
@@ -123,10 +124,95 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
     );
   }
 
-  // -- VISTA PÚBLICA: portada de categorías ? items de la categoría ------------
+  // -- VISTA Pï¿½BLICA: portada de categorï¿½as ? items de la categorï¿½a ------------
   const categoriesWithItems = catalog.categories.filter((cat) =>
     catalog.items.some((i) => i.category === cat)
   );
+
+  const availableBrands = [...new Set(
+    catalog.items.map((i) => i.brand).filter((b): b is string => !!b)
+  )].sort();
+
+  // -- Vista de marca: todos los productos de una marca (cross-categorÃ­a) ------
+  if (selectedBrand !== null) {
+    const brandItems = catalog.items.filter((i) => i.brand === selectedBrand);
+    const brandGrouped: Record<string, CatalogItem[]> = {};
+    for (const item of brandItems) {
+      const cat = item.category || 'Sin categorÃ­a';
+      if (!brandGrouped[cat]) brandGrouped[cat] = [];
+      brandGrouped[cat].push(item);
+    }
+    const brandCats = Object.keys(brandGrouped);
+
+    return (
+      <>
+      <div style={{ ...bg, fontFamily: theme.fontFamily }} className="min-h-screen">
+        {/* Sticky header */}
+        <div
+          style={{ backgroundColor: headerBg, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+          className="sticky top-0 z-20 border-b border-white/10 px-4 py-3 flex items-center gap-3"
+        >
+          <button
+            onClick={() => setSelectedBrand(null)}
+            style={{ color: textColor }}
+            className="text-sm font-medium flex items-center gap-1 flex-shrink-0 opacity-75 hover:opacity-100 transition-opacity"
+          >
+            &larr;&nbsp;<span className="hidden sm:inline">Volver</span>
+          </button>
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <span
+              style={{ backgroundColor: theme.primaryColor + '25', color: theme.primaryColor }}
+              className="text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
+            >
+              {selectedBrand}
+            </span>
+            <span style={{ color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)' }} className="text-xs">
+              {brandItems.length} producto{brandItems.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          {catalog.logo && (
+            <img src={catalog.logo} alt="logo" className="w-8 h-8 object-contain rounded flex-shrink-0 opacity-90" />
+          )}
+        </div>
+
+        {/* Items agrupados por categorÃ­a */}
+        <div className="max-w-2xl mx-auto px-4 py-5 space-y-7">
+          {brandItems.length === 0 ? (
+            <p style={{ color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)' }} className="text-sm text-center py-16">
+              Sin productos de esta marca
+            </p>
+          ) : (
+            <>
+              {brandCats.map((cat) => (
+                <section key={cat}>
+                  <h2
+                    style={{ color: theme.primaryColor, borderColor: theme.primaryColor + '40' }}
+                    className="text-xs font-bold uppercase tracking-widest mb-3 pb-1.5 border-b"
+                  >
+                    {cat}{' '}
+                    <span style={{ color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)' }} className="font-normal normal-case tracking-normal">
+                      ({brandGrouped[cat].length})
+                    </span>
+                  </h2>
+                  <LayoutItems
+                    layout={layout}
+                    items={brandGrouped[cat]}
+                    theme={theme}
+                    isDark={isDark}
+                    radius={radius}
+                    fullPage={true}
+                    onOpen={setOpenItem}
+                  />
+                </section>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+      {openItem && <ProductModal item={openItem} theme={theme} isDark={isDark} onClose={() => setOpenItem(null)} />}
+      </>
+    );
+  }
 
   if (selectedCategory === null) {
     const btnBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
@@ -205,11 +291,36 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
             </p>
           )}
 
+          {/* Brand filter */}
+          {availableBrands.length > 0 && (
+            <div className="w-full">
+              <p style={{ color: subColor }} className="text-xs font-semibold uppercase tracking-widest mb-3 text-center">
+                Filtrar por marca
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {availableBrands.map((brand) => (
+                  <button
+                    key={brand}
+                    onClick={() => setSelectedBrand(brand)}
+                    className="px-4 py-1.5 rounded-full text-sm font-semibold border transition-all active:opacity-60"
+                    style={{
+                      borderColor: theme.primaryColor + '60',
+                      color: textColor,
+                      backgroundColor: theme.primaryColor + '15',
+                    }}
+                  >
+                    {brand}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Social links */}
           {hasSocial && (
             <div className="flex flex-col items-center gap-3 mt-2">
               <p style={{ color: subColor }} className="text-xs font-semibold tracking-widest uppercase">
-                Síguenos
+                Sï¿½guenos
               </p>
               <div className="flex gap-6">
                 {catalog.instagram && (
@@ -237,7 +348,7 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
     );
   }
 
-  // Categoría seleccionada ? lista de items
+  // Categorï¿½a seleccionada ? lista de items
   const items = catalog.items.filter((i) => i.category === selectedCategory);
 
   return (
@@ -321,6 +432,11 @@ function ItemCard({
         <div style={{ color: textColor }} className="font-semibold text-sm leading-tight">
           {item.name}
         </div>
+        {item.brand && (
+          <div style={{ color: theme.primaryColor, opacity: 0.8 }} className="text-[10px] font-semibold uppercase tracking-wider mt-0.5">
+            {item.brand}
+          </div>
+        )}
         {item.description && (
           <p style={{ color: subColor }} className="text-xs mt-0.5 line-clamp-2">
             {item.description}
@@ -435,6 +551,11 @@ function GridCard({
         <div style={{ color: textColor }} className="font-semibold text-sm leading-tight">
           {item.name}
         </div>
+        {item.brand && (
+          <div style={{ color: theme.primaryColor, opacity: 0.8 }} className="text-[10px] font-semibold uppercase tracking-wider mt-0.5">
+            {item.brand}
+          </div>
+        )}
         {item.description && (
           <p style={{ color: subColor }} className="text-xs mt-0.5 line-clamp-2 flex-1">
             {item.description}
@@ -551,6 +672,11 @@ function MinimalItem({
     >
       <div className="flex-1 min-w-0">
         <div style={{ color: textColor }} className="font-semibold text-sm">{item.name}</div>
+        {item.brand && (
+          <div style={{ color: theme.primaryColor, opacity: 0.8 }} className="text-[10px] font-semibold uppercase tracking-wider mt-0.5">
+            {item.brand}
+          </div>
+        )}
         {item.description && (
           <p style={{ color: subColor }} className="text-xs mt-0.5 leading-relaxed">{item.description}</p>
         )}
@@ -601,7 +727,7 @@ function ProductModal({
             style={{ color: subColor }}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/10 text-xl font-light transition-colors"
           >
-            ×
+            ï¿½
           </button>
         </div>
 
@@ -620,13 +746,13 @@ function ProductModal({
                   onClick={prev}
                   className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition-colors"
                 >
-                  ‹
+                  ï¿½
                 </button>
                 <button
                   onClick={next}
                   className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 text-white text-xl flex items-center justify-center transition-colors"
                 >
-                  ›
+                  ï¿½
                 </button>
                 <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
                   {images.map((_, i) => (
@@ -671,6 +797,14 @@ function ProductModal({
           <h2 style={{ color: textColor }} className="text-xl font-bold leading-tight">
             {item.name}
           </h2>
+          {item.brand && (
+            <span
+              style={{ backgroundColor: theme.primaryColor + '20', color: theme.primaryColor }}
+              className="inline-block text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full mt-2"
+            >
+              {item.brand}
+            </span>
+          )}
           {item.price !== undefined && (
             <div style={{ color: theme.primaryColor }} className="text-2xl font-black mt-1">
               ${item.price.toFixed(2)}
@@ -684,7 +818,7 @@ function ProductModal({
           {item.sizes && item.sizes.length > 0 && (
             <div className="mt-4">
               <div style={{ color: subColor }} className="text-xs font-semibold uppercase tracking-wider mb-2">
-                Tamaños / Tallas
+                Tamaï¿½os / Tallas
               </div>
               <div className="flex gap-2 flex-wrap">
                 {item.sizes.map((s) => (

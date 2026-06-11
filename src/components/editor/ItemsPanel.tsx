@@ -17,6 +17,7 @@ const EMPTY_ITEM: Omit<CatalogItem, 'id'> = {
   category: '',
   available: true,
   sizes: [],
+  brand: '',
 };
 
 export default function ItemsPanel({ catalog, onChange }: Props) {
@@ -296,6 +297,16 @@ function ItemEditModal({
           onChange={(e) => set('price', e.target.value ? parseFloat(e.target.value) : undefined)}
           className="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2.5 text-white placeholder-slate-400 outline-none focus:border-purple-500 transition-colors"
         />
+
+        {type === 'products' && (
+          <input
+            type="text"
+            placeholder="Marca (ej: Nike, Adidas…)"
+            value={form.brand ?? ''}
+            onChange={(e) => set('brand', e.target.value)}
+            className="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2.5 text-white placeholder-slate-400 outline-none focus:border-purple-500 transition-colors"
+          />
+        )}
 
         <ImageUploader
           catalogId={catalogId}

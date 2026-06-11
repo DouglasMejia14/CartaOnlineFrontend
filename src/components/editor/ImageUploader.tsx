@@ -51,7 +51,7 @@ async function compressImage(file: File): Promise<File> {
   });
 }
 
-export default function ImageUploader({ catalogId, itemId, images, onChange, onUploadingChange, max = 20 }: Props) {
+export default function ImageUploader({ catalogId, itemId, images, onChange, onUploadingChange, max = 50 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [tasks, setTasks] = useState<UploadTask[]>([]);
   const [dragging, setDragging] = useState(false);

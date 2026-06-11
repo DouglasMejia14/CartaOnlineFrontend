@@ -54,6 +54,7 @@ function toBackendItem(item: Partial<CatalogItem>): Record<string, unknown> {
   if (item.images !== undefined)      out.images      = item.images;
   if (item.available !== undefined)   out.available   = item.available;
   if (item.sizes !== undefined)       out.sizes       = item.sizes;
+  if (item.brand !== undefined)       out.brand       = item.brand;
   return out;
 }
 
@@ -69,6 +70,7 @@ function fromBackendItem(data: Record<string, unknown>): CatalogItem {
     category:    ((data.categoryId  ?? data.categoriaId ?? data.category) as string) ?? '',
     available:    (data.available   ?? data.disponible) as boolean | undefined,
     sizes:        (data.sizes       ?? data.tallas)     as string[] | undefined,
+    brand:        (data.brand       ?? data.marca)      as string   | undefined,
   };
 }
 

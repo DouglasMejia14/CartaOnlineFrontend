@@ -11,6 +11,7 @@ export interface CatalogItem {
   /** Products specific */
   sizes?: string[];
   colors?: string[];
+  brand?: string;
 }
 
 export interface CatalogTheme {
