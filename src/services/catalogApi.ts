@@ -50,7 +50,8 @@ function toBackendItem(item: Partial<CatalogItem>): Record<string, unknown> {
   if (item.name !== undefined)        out.name        = item.name;
   if (item.price !== undefined)       out.price       = item.price;
   if (item.description !== undefined) out.description = item.description;
-  if ('category' in item)             out.categoryId  = item.category || null;
+  if ('category' in item)             out.categoryId    = item.category || null;
+  if ('subcategoryId' in item)         out.subcategoryId = item.subcategoryId ?? null;
   if (item.images !== undefined)      out.images      = item.images;
   if (item.available !== undefined)   out.available   = item.available;
   if (item.sizes !== undefined)       out.sizes       = item.sizes;
@@ -68,6 +69,7 @@ function fromBackendItem(data: Record<string, unknown>): CatalogItem {
                     : data.imagen                ? [data.imagen as string]
                     : [],
     category:    ((data.categoryId  ?? data.categoriaId ?? data.category) as string) ?? '',
+    subcategoryId: (data.subcategoryId ?? data.subcategoriaId ?? null) as string | null | undefined,
     available:    (data.available   ?? data.disponible) as boolean | undefined,
     sizes:        (data.sizes       ?? data.tallas)     as string[] | undefined,
     brand:        (data.brand       ?? data.marca)      as string   | undefined,

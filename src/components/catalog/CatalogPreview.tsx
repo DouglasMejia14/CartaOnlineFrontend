@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Catalog, CatalogItem, CatalogTheme } from "../../types";
+import { getCategoryId, getCategoryName, isItemInCategory, formatPrice } from "../../utils/catalog";
 
 interface Props {
   catalog: Catalog;
@@ -51,8 +52,14 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
   const align = theme.headerAlign ?? 'center';
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
+
+  function selectCategory(catId: string | null) {
+    setSelectedCategory(catId);
+    setSelectedSubcategory(null);
+  }
 
   const textColor = isDark ? "#ffffff" : "#111827";
   const subColor = isDark ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.55)";
@@ -62,14 +69,6 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
 
   // -- EDITOR PREVIEW: muestra todos los items agrupados (sin portada) ---------
   if (!fullPage) {
-    const grouped: Record<string, CatalogItem[]> = {};
-    for (const item of catalog.items) {
-      const cat = item.category ?? '';
-      if (!grouped[cat]) grouped[cat] = [];
-      grouped[cat].push(item);
-    }
-    const visibleCats = catalog.categories.length > 0 ? catalog.categories : Object.keys(grouped);
-
     return (
       <>
       <div style={{ ...bg, fontFamily: theme.fontFamily }} className="h-[620px] overflow-y-auto">
@@ -95,22 +94,48 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
             <p style={{ color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)" }} className="text-sm text-center py-16">
               Agrega productos desde el panel de edicion
             </p>
-          ) : visibleCats.length > 0 ? (
-            visibleCats.map((cat) => {
-              const catItems = grouped[cat] ?? [];
+          ) : catalog.categories.length > 0 ? (
+            catalog.categories.map((cat) => {
+              const catId = getCategoryId(cat);
+              const catName = getCategoryName(cat);
+              const catItems = catalog.items.filter((i) => isItemInCategory(i.category, cat));
               if (catItems.length === 0) return null;
+              const subcategories = typeof cat !== 'string' ? cat.subcategories : [];
+              const hasSubcategories = subcategories.some((s) => catItems.some((i) => i.subcategoryId === s.id));
               return (
-                <section key={cat}>
+                <section key={catId}>
                   <h2
                     style={{ color: theme.primaryColor, borderColor: theme.primaryColor + "40" }}
                     className="text-xs font-bold uppercase tracking-widest mb-3 pb-1.5 border-b"
                   >
-                    {cat}{" "}
+                    {catName}{" "}
                     <span style={{ color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)" }} className="font-normal normal-case tracking-normal">
                       ({catItems.length})
                     </span>
                   </h2>
-                  <LayoutItems layout={layout} items={catItems} theme={theme} isDark={isDark} radius={radius} fullPage={false} onOpen={setOpenItem} />
+                  {hasSubcategories ? (
+                    <>
+                      {subcategories.map((sub) => {
+                        const subItems = catItems.filter((i) => i.subcategoryId === sub.id);
+                        if (subItems.length === 0) return null;
+                        return (
+                          <div key={sub.id} className="mb-4">
+                            <h3 style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)" }} className="text-[11px] font-semibold uppercase tracking-widest mb-2 pl-0.5">
+                              {sub.name}
+                            </h3>
+                            <LayoutItems layout={layout} items={subItems} theme={theme} isDark={isDark} radius={radius} fullPage={false} onOpen={setOpenItem} />
+                          </div>
+                        );
+                      })}
+                      {(() => {
+                        const noSub = catItems.filter((i) => !i.subcategoryId);
+                        if (noSub.length === 0) return null;
+                        return <LayoutItems layout={layout} items={noSub} theme={theme} isDark={isDark} radius={radius} fullPage={false} onOpen={setOpenItem} />;
+                      })()}
+                    </>
+                  ) : (
+                    <LayoutItems layout={layout} items={catItems} theme={theme} isDark={isDark} radius={radius} fullPage={false} onOpen={setOpenItem} />
+                  )}
                 </section>
               );
             })
@@ -124,9 +149,9 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
     );
   }
 
-  // -- VISTA P�BLICA: portada de categor�as ? items de la categor�a ------------
+  // -- VISTA PÚBLICA: portada de categorías → items de la categoría ------------
   const categoriesWithItems = catalog.categories.filter((cat) =>
-    catalog.items.some((i) => i.category === cat)
+    catalog.items.some((i) => isItemInCategory(i.category, cat))
   );
 
   const availableBrands = [...new Set(
@@ -138,9 +163,11 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
     const brandItems = catalog.items.filter((i) => i.brand === selectedBrand);
     const brandGrouped: Record<string, CatalogItem[]> = {};
     for (const item of brandItems) {
-      const cat = item.category || 'Sin categoría';
-      if (!brandGrouped[cat]) brandGrouped[cat] = [];
-      brandGrouped[cat].push(item);
+      // Resolve category name for display
+      const matchedCat = catalog.categories.find((c) => isItemInCategory(item.category, c));
+      const catLabel = matchedCat ? getCategoryName(matchedCat) : (item.category || 'Sin categoría');
+      if (!brandGrouped[catLabel]) brandGrouped[catLabel] = [];
+      brandGrouped[catLabel].push(item);
     }
     const brandCats = Object.keys(brandGrouped);
 
@@ -258,20 +285,24 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
           {/* Categories or direct items */}
           {categoriesWithItems.length > 0 ? (
             <div className="w-full flex flex-col gap-3">
-              {categoriesWithItems.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className="w-full py-4 px-6 rounded-full font-semibold text-base border-2 active:opacity-60 transition-opacity"
-                  style={{
-                    borderColor: theme.primaryColor,
-                    color: textColor,
-                    backgroundColor: btnBg,
-                  }}
-                >
-                  {cat}
-                </button>
-              ))}
+              {categoriesWithItems.map((cat) => {
+                const catId = getCategoryId(cat);
+                const catName = getCategoryName(cat);
+                return (
+                  <button
+                    key={catId}
+                    onClick={() => selectCategory(catId)}
+                    className="w-full py-4 px-6 rounded-full font-semibold text-base border-2 active:opacity-60 transition-opacity"
+                    style={{
+                      borderColor: theme.primaryColor,
+                      color: textColor,
+                      backgroundColor: btnBg,
+                    }}
+                  >
+                    {catName}
+                  </button>
+                );
+              })}
             </div>
           ) : catalog.items.length > 0 ? (
             <div className="w-full">
@@ -348,8 +379,21 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
     );
   }
 
-  // Categor�a seleccionada ? lista de items
-  const items = catalog.items.filter((i) => i.category === selectedCategory);
+  // Categoría seleccionada → lista de items con tabs de subcategoría
+  const currentCat = catalog.categories.find((c) => getCategoryId(c) === selectedCategory) ?? null;
+  const currentCatName = currentCat ? getCategoryName(currentCat) : selectedCategory;
+  const allCatItems = currentCat
+    ? catalog.items.filter((i) => isItemInCategory(i.category, currentCat))
+    : catalog.items.filter((i) => i.category === selectedCategory);
+
+  const subcategories = (currentCat && typeof currentCat !== 'string') ? currentCat.subcategories : [];
+  // Only show subcategories that actually have items
+  const visibleSubs = subcategories.filter((s) => allCatItems.some((i) => i.subcategoryId === s.id));
+
+  // Items shown depend on selected subcategory tab
+  const items = selectedSubcategory
+    ? allCatItems.filter((i) => i.subcategoryId === selectedSubcategory)
+    : allCatItems;
 
   return (
     <>
@@ -357,20 +401,55 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
       {/* Sticky header */}
       <div
         style={{ backgroundColor: headerBg, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
-        className="sticky top-0 z-20 border-b border-white/10 px-4 py-3 flex items-center gap-3"
+        className="sticky top-0 z-20 border-b border-white/10"
       >
-        <button
-          onClick={() => setSelectedCategory(null)}
-          style={{ color: textColor }}
-          className="text-sm font-medium flex items-center gap-1 flex-shrink-0 opacity-75 hover:opacity-100 transition-opacity"
-        >
-          &larr;&nbsp;<span className="hidden sm:inline">Menu</span>
-        </button>
-        <div className="flex-1 min-w-0">
-          <div style={{ color: textColor }} className="font-bold text-sm truncate">{selectedCategory}</div>
+        {/* Row 1: back + title + logo */}
+        <div className="px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={() => selectCategory(null)}
+            style={{ color: textColor }}
+            className="text-sm font-medium flex items-center gap-1 flex-shrink-0 opacity-75 hover:opacity-100 transition-opacity"
+          >
+            &larr;&nbsp;<span className="hidden sm:inline">Menu</span>
+          </button>
+          <div className="flex-1 min-w-0">
+            <div style={{ color: textColor }} className="font-bold text-sm truncate">{currentCatName}</div>
+          </div>
+          {catalog.logo && (
+            <img src={catalog.logo} alt="logo" className="w-8 h-8 object-contain rounded flex-shrink-0 opacity-90" />
+          )}
         </div>
-        {catalog.logo && (
-          <img src={catalog.logo} alt="logo" className="w-8 h-8 object-contain rounded flex-shrink-0 opacity-90" />
+
+        {/* Row 2: subcategory tabs (only when category has subcategories with items) */}
+        {visibleSubs.length > 0 && (
+          <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => setSelectedSubcategory(null)}
+              className="flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
+              style={{
+                backgroundColor: !selectedSubcategory ? theme.primaryColor : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
+                color: !selectedSubcategory ? '#fff' : (isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
+              }}
+            >
+              Todo
+            </button>
+            {visibleSubs.map((sub) => {
+              const isActive = selectedSubcategory === sub.id;
+              return (
+                <button
+                  key={sub.id}
+                  onClick={() => setSelectedSubcategory(sub.id)}
+                  className="flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
+                  style={{
+                    backgroundColor: isActive ? theme.primaryColor : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
+                    color: isActive ? '#fff' : (isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
+                  }}
+                >
+                  {sub.name}
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -458,7 +537,7 @@ function ItemCard({
       </div>
       {item.price !== undefined && (
         <div style={{ color: theme.primaryColor }} className="text-sm font-bold flex-shrink-0 self-start mt-0.5">
-          ${item.price.toFixed(2)}
+          ${formatPrice(item.price)}
         </div>
       )}
     </div>
@@ -563,7 +642,7 @@ function GridCard({
         )}
         {item.price !== undefined && (
           <div style={{ color: theme.primaryColor }} className="text-sm font-bold mt-1.5">
-            ${item.price.toFixed(2)}
+            ${formatPrice(item.price)}
           </div>
         )}
       </div>
@@ -613,7 +692,7 @@ function EditorialLayout({
                 <div className="text-white font-bold text-base leading-tight drop-shadow">{hero.name}</div>
                 {hero.price !== undefined && (
                   <div style={{ color: theme.primaryColor }} className="font-bold text-sm mt-0.5 drop-shadow">
-                    ${hero.price.toFixed(2)}
+                    ${formatPrice(hero.price)}
                   </div>
                 )}
               </div>
@@ -632,7 +711,7 @@ function EditorialLayout({
             )}
             {hero.price !== undefined && (
               <div style={{ color: theme.primaryColor }} className="font-bold text-sm mt-2">
-                ${hero.price.toFixed(2)}
+                ${formatPrice(hero.price)}
               </div>
             )}
           </div>
@@ -683,7 +762,7 @@ function MinimalItem({
       </div>
       {item.price !== undefined && (
         <div style={{ color: theme.primaryColor }} className="font-bold text-sm flex-shrink-0 ml-2 pt-0.5">
-          ${item.price.toFixed(2)}
+          ${formatPrice(item.price)}
         </div>
       )}
     </div>
@@ -807,7 +886,7 @@ function ProductModal({
           )}
           {item.price !== undefined && (
             <div style={{ color: theme.primaryColor }} className="text-2xl font-black mt-1">
-              ${item.price.toFixed(2)}
+              ${formatPrice(item.price)}
             </div>
           )}
           {item.description && (

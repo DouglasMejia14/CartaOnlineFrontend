@@ -1,12 +1,24 @@
 export type CatalogType = 'restaurant' | 'products';
 
+export interface Subcategory {
+  id: string;
+  name: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  subcategories: Subcategory[];
+}
+
 export interface CatalogItem {
   id: string;
   name: string;
   description: string;
   price?: number;
   images?: string[];   // array de URLs (primera = portada)
-  category: string;
+  category: string;   // categoryId (UUID) para datos nuevos, nombre para datos viejos
+  subcategoryId?: string | null;
   available?: boolean;
   /** Products specific */
   sizes?: string[];
@@ -40,7 +52,7 @@ export interface Catalog {
   tiktok?: string;
   theme: CatalogTheme;
   items: CatalogItem[];
-  categories: string[];
+  categories: (string | Category)[];
   createdAt: string;
   updatedAt: string;
 }
