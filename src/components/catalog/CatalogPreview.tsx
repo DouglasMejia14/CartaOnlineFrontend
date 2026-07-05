@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { Catalog, CatalogItem, CatalogTheme } from "../../types";
 import { getCategoryId, getCategoryName, isItemInCategory, formatPrice } from "../../utils/catalog";
+
+// Canvas reference dimensions (must match CanvasEditor)
+const CANVAS_CW = 800;
+const CANVAS_CH = 450;
 
 interface Props {
   catalog: Catalog;
@@ -55,6 +59,21 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
+
+  // Canvas scaling (used only when layout === 'canvas')
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const [canvasScale, setCanvasScale] = useState(1);
+  useEffect(() => {
+    if (layout !== 'canvas') return;
+    const el = canvasContainerRef.current;
+    if (!el) return;
+    const update = () => setCanvasScale(el.clientWidth / CANVAS_CW);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout]);
 
   function selectCategory(catId: string | null) {
     setSelectedCategory(catId);
@@ -145,6 +164,161 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
         </div>
       </div>
       {openItem && <ProductModal item={openItem} theme={theme} isDark={isDark} onClose={() => setOpenItem(null)} />}
+      </>
+    );
+  }
+
+  // -- VISTA PÚBLICA: Canvas libre multi-página --------------------------------
+  if (layout === 'canvas') {
+    // Obtener páginas (con migración desde canvasElements)
+    const rawPages = theme.canvasPages;
+    const pages = rawPages && rawPages.length > 0
+      ? rawPages
+      : [{
+          id: 'legacy',
+          bgType: theme.bgType,
+          bgValue: theme.bgValue,
+          elements: theme.canvasElements ?? [],
+        }];
+
+    // Colectar todos los productIds que aparecen en alguna página
+    const allPlacedIds = new Set(
+      pages.flatMap((p) => p.elements.filter((e) => e.type === 'product').map((e) => e.productId))
+    );
+    const unplacedItems = catalog.items.filter((i) => !allPlacedIds.has(i.id));
+
+    function getPageBg(page: { bgType: string; bgValue: string }): React.CSSProperties {
+      if (page.bgType === 'image' && page.bgValue)
+        return { backgroundImage: `url(${page.bgValue})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' };
+      if (page.bgType === 'gradient')
+        return { background: page.bgValue || '#1a1a2e' };
+      return { backgroundColor: page.bgValue || '#1a1a2e' };
+    }
+
+    function renderElement(el: NonNullable<typeof pages[0]['elements'][0]>, idx: number) {
+      const s: React.CSSProperties = {
+        position: 'absolute', left: el.x, top: el.y, width: el.w, height: el.h,
+        opacity: el.opacity ?? 1, borderRadius: el.borderRadius ?? 0,
+        overflow: 'hidden', zIndex: idx + 1,
+      };
+      if (el.type === 'text') return (
+        <div key={el.id} style={s}>
+          <div style={{ width: '100%', height: '100%', backgroundColor: el.bgColor || 'transparent',
+            borderRadius: el.borderRadius ?? 0, display: 'flex', alignItems: 'center',
+            padding: '6px 10px', boxSizing: 'border-box' }}>
+            <span style={{ width: '100%', fontSize: el.fontSize ?? 24, color: el.color ?? '#fff',
+              fontFamily: el.fontFamily ?? theme.fontFamily, fontWeight: el.fontWeight ?? 'bold',
+              fontStyle: el.fontStyle ?? 'normal', textAlign: el.textAlign ?? 'center',
+              wordBreak: 'break-word', whiteSpace: 'pre-wrap', lineHeight: 1.25 }}>
+              {el.text ?? ''}
+            </span>
+          </div>
+        </div>
+      );
+      if (el.type === 'image') return (
+        <div key={el.id} style={s}>
+          <img src={el.imageUrl} alt="" draggable={false}
+            style={{ width: '100%', height: '100%', objectFit: el.objectFit ?? 'cover', display: 'block' }} />
+        </div>
+      );
+      if (el.type === 'product') {
+        const product = catalog.items.find((i) => i.id === el.productId);
+        if (!product) return null;
+        return (
+          <div key={el.id} style={{ ...s, cursor: 'pointer' }} onClick={() => setOpenItem(product)}>
+            {el.productStyle === 'minimal' ? (
+              <div style={{ width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.62)',
+                backdropFilter: 'blur(6px)', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', padding: 10, gap: 4, boxSizing: 'border-box' }}>
+                <span style={{ color: '#fff', fontWeight: 700, fontSize: 14, textAlign: 'center',
+                  lineHeight: 1.2, wordBreak: 'break-word', width: '100%' }}>{product.name}</span>
+                {product.price !== undefined && (
+                  <span style={{ color: theme.primaryColor, fontWeight: 800, fontSize: 16 }}>
+                    ${formatPrice(product.price)}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+                backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}>
+                {product.images?.[0] && (
+                  <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                    <img src={product.images[0]} alt={product.name} draggable={false}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  </div>
+                )}
+                <div style={{ flexShrink: 0, padding: '6px 8px', backgroundColor: 'rgba(0,0,0,0.55)' }}>
+                  <div style={{ color: '#fff', fontWeight: 700, fontSize: 12,
+                    overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{product.name}</div>
+                  {product.price !== undefined && (
+                    <div style={{ color: theme.primaryColor, fontWeight: 800, fontSize: 11, marginTop: 2 }}>
+                      ${formatPrice(product.price)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+      return null;
+    }
+
+    return (
+      <>
+      <div style={{ fontFamily: theme.fontFamily, backgroundColor: '#0a0a0f' }} className="min-h-screen">
+        {/* Sticky header */}
+        <div style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+          className="sticky top-0 z-20 border-b border-white/10 px-4 py-3 flex items-center gap-3">
+          {catalog.logo && (
+            <img src={catalog.logo} alt="logo" className="w-8 h-8 object-contain rounded flex-shrink-0" />
+          )}
+          <div style={{ color: '#ffffff' }} className="font-bold text-sm truncate flex-1">
+            {catalog.title || 'Mi carta'}
+          </div>
+          {pages.length > 1 && (
+            <span style={{ color: 'rgba(255,255,255,0.4)' }} className="text-xs flex-shrink-0">
+              {pages.length} páginas
+            </span>
+          )}
+        </div>
+
+        {/* All pages stacked — ref on outer wrapper for scale */}
+        <div ref={canvasContainerRef} className="w-full">
+          {pages.map((page, pidx) => (
+            <div key={page.id} className="relative w-full" style={{ height: `${CANVAS_CH * canvasScale}px` }}>
+              <div className="absolute top-0 left-0"
+                style={{ width: CANVAS_CW, height: CANVAS_CH,
+                  transform: `scale(${canvasScale})`, transformOrigin: 'top left',
+                  ...getPageBg(page) }}>
+                {page.elements.map((el, idx) => renderElement(el, idx))}
+                {page.elements.length === 0 && pidx === 0 && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', color: 'rgba(255,255,255,0.15)', fontSize: 14 }}>
+                    Diseño vacío
+                  </div>
+                )}
+              </div>
+              {/* Page separator */}
+              {pidx < pages.length - 1 && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40 z-10" />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Unplaced products (fallback list) */}
+        {unplacedItems.length > 0 && (
+          <div className="max-w-2xl mx-auto px-4 py-6">
+            <p style={{ color: 'rgba(255,255,255,0.3)' }} className="text-xs uppercase tracking-wider font-semibold mb-4">
+              Ver también
+            </p>
+            <LayoutItems layout="list" items={unplacedItems} theme={theme}
+              isDark={true} radius={radius} fullPage={true} onOpen={setOpenItem} />
+          </div>
+        )}
+      </div>
+      {openItem && <ProductModal item={openItem} theme={theme} isDark={true} onClose={() => setOpenItem(null)} />}
       </>
     );
   }

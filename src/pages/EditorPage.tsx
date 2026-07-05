@@ -5,6 +5,7 @@ import { clearSession } from "../lib/auth";
 import type { Catalog } from "../types";
 import ThemePanel from "../components/editor/ThemePanel";
 import ItemsPanel from "../components/editor/ItemsPanel";
+import CanvasEditor from "../components/editor/CanvasEditor";
 import CatalogPreview from "../components/catalog/CatalogPreview";
 import SharePanel from "../components/editor/SharePanel";
 
@@ -155,13 +156,21 @@ export default function EditorPage() {
           </div>
         </aside>
 
-        <main className="flex-1 overflow-auto bg-slate-950 flex items-start justify-center p-6">
-          <div className="w-full max-w-lg">
-            <div className="text-center text-slate-500 text-xs mb-3">Vista previa</div>
-            <div className="rounded-2xl overflow-hidden shadow-2xl shadow-black/50 border border-slate-800">
-              <CatalogPreview catalog={catalog} />
+        <main className="flex-1 overflow-auto bg-slate-950">
+          {(catalog.theme.layout ?? 'list') === 'canvas' ? (
+            <div className="h-full p-4">
+              <CanvasEditor catalog={catalog} onChange={updateCatalog} />
             </div>
-          </div>
+          ) : (
+            <div className="flex items-start justify-center p-6 h-full">
+              <div className="w-full max-w-lg">
+                <div className="text-center text-slate-500 text-xs mb-3">Vista previa</div>
+                <div className="rounded-2xl overflow-hidden shadow-2xl shadow-black/50 border border-slate-800">
+                  <CatalogPreview catalog={catalog} />
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
 
@@ -170,7 +179,14 @@ export default function EditorPage() {
         {/* Content area */}
         <div className="flex-1 overflow-y-auto">
           {mobileTab === "preview" ? (
-            <CatalogPreview catalog={catalog} fullPage />
+            (catalog.theme.layout ?? 'list') === 'canvas' ? (
+              <div className="p-4">
+                <p className="text-slate-500 text-xs text-center mb-4">Editor de canvas</p>
+                <CanvasEditor catalog={catalog} onChange={updateCatalog} />
+              </div>
+            ) : (
+              <CatalogPreview catalog={catalog} fullPage />
+            )
           ) : (
             <div className="p-4">
               {mobileTab === "theme" && <ThemePanel catalog={catalog} onChange={updateCatalog} />}

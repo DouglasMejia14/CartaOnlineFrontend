@@ -31,6 +31,7 @@ const LAYOUT_OPTIONS: { value: NonNullable<CatalogTheme['layout']>; label: strin
   { value: 'grid',      label: 'Cuadrícula',    icon: '⊞', desc: 'Grid 2 col con imagen grande' },
   { value: 'editorial', label: 'Editorial',     icon: '◈', desc: 'Primer item destacado + grid' },
   { value: 'minimal',   label: 'Minimalista',   icon: '≡', desc: 'Solo texto, estilo carta clásica' },
+  { value: 'canvas',    label: 'Diseño Libre',  icon: '🖼', desc: 'Ubica items sobre imagen de fondo' },
 ];
 
 const RADIUS_OPTIONS: { label: string; value: CatalogTheme['borderRadius'] }[] = [
@@ -411,6 +412,11 @@ export default function ThemePanel({ catalog, onChange }: Props) {
       {/* Layout */}
       <section>
         <label className="block text-slate-300 font-semibold mb-3">Diseño de carta</label>
+        {(theme.layout ?? 'list') === 'canvas' && (
+          <div className="mb-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs leading-relaxed">
+            🖼️ <strong>Diseño Libre activo.</strong> El editor de canvas aparece en el panel de la derecha. Sube una imagen de fondo arriba y coloca tus ítems encima.
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           {LAYOUT_OPTIONS.map((l) => (
             <button
