@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../../lib/firebase';
+import { IMAGE_UPLOAD_CACHE_CONTROL, storage } from '../../lib/firebase';
 import type { Catalog, CanvasElement, CanvasElementType, CanvasPage } from '../../types';
 import { formatPrice } from '../../utils/catalog';
 
@@ -183,7 +183,10 @@ export default function CanvasEditor({ catalog, onChange }: Props) {
     const ext = file.name.split('.').pop() ?? 'jpg';
     const path = `catalogs/${catalog.id}/canvas-${Date.now()}.${ext}`;
     const sRef = storageRef(storage, path);
-    const task = uploadBytesResumable(sRef, file);
+    const task = uploadBytesResumable(sRef, file, {
+      contentType: file.type,
+      cacheControl: IMAGE_UPLOAD_CACHE_CONTROL,
+    });
     setImgUploading(true); setImgProgress(0);
     task.on('state_changed',
       (snap) => setImgProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
@@ -621,7 +624,10 @@ function PagePanel({ page, catalog, onPageChange }:
     const ext = file.name.split('.').pop() ?? 'jpg';
     const path = `catalogs/${catalog.id}/page-bg-${Date.now()}.${ext}`;
     const sRef = storageRef(storage, path);
-    const task = uploadBytesResumable(sRef, file);
+    const task = uploadBytesResumable(sRef, file, {
+      contentType: file.type,
+      cacheControl: IMAGE_UPLOAD_CACHE_CONTROL,
+    });
     setUploading(true); setProgress(0);
     task.on('state_changed',
       (snap) => setProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
@@ -746,7 +752,10 @@ function ElementPanel({ el, catalog, onChange }:
     const ext = file.name.split('.').pop() ?? 'jpg';
     const path = `catalogs/${catalog.id}/canvas-${Date.now()}.${ext}`;
     const sRef = storageRef(storage, path);
-    const task = uploadBytesResumable(sRef, file);
+    const task = uploadBytesResumable(sRef, file, {
+      contentType: file.type,
+      cacheControl: IMAGE_UPLOAD_CACHE_CONTROL,
+    });
     setRepUploading(true);
     task.on('state_changed',
       (snap) => setRepProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),

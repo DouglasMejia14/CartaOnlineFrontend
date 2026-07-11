@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../../lib/firebase';
+import { IMAGE_UPLOAD_CACHE_CONTROL, storage } from '../../lib/firebase';
 import type { Catalog, CatalogTheme } from '../../types';
 
 const GRADIENTS = [
@@ -65,7 +65,10 @@ export default function ThemePanel({ catalog, onChange }: Props) {
     const ext = file.name.split('.').pop() ?? 'jpg';
     const path = `catalogs/${catalog.id}/bg-${Date.now()}.${ext}`;
     const storageRef = ref(storage, path);
-    const task = uploadBytesResumable(storageRef, file);
+    const task = uploadBytesResumable(storageRef, file, {
+      contentType: file.type,
+      cacheControl: IMAGE_UPLOAD_CACHE_CONTROL,
+    });
     setBgUploading(true);
     setBgProgress(0);
     task.on(
@@ -85,7 +88,10 @@ export default function ThemePanel({ catalog, onChange }: Props) {
     const ext = file.name.split('.').pop() ?? 'png';
     const path = `catalogs/${catalog.id}/logo-${Date.now()}.${ext}`;
     const storageRef = ref(storage, path);
-    const task = uploadBytesResumable(storageRef, file);
+    const task = uploadBytesResumable(storageRef, file, {
+      contentType: file.type,
+      cacheControl: IMAGE_UPLOAD_CACHE_CONTROL,
+    });
     setLogoUploading(true);
     setLogoProgress(0);
     task.on(

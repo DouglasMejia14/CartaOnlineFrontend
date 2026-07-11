@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../../lib/firebase';
+import { IMAGE_UPLOAD_CACHE_CONTROL, storage } from '../../lib/firebase';
 
 interface Props {
   catalogId: string;
@@ -17,7 +17,15 @@ interface UploadTask {
   error?: string;
 }
 
-const ACCEPTED = 'image/jpeg,image/png,image/webp,image/gif,image/avif';
+interface BatchProgress {
+  total: number;
+  currentIndex: number;
+  currentName: string;
+  fileProgress: number;
+}
+
+const ACCEPTED = 'image/*';
+const MAX_BATCH = 20;
 const MAX_SIZE_MB = 5;
 const MAX_PX = 900;       // ancho/alto máximo antes de subir
 const QUALITY = 0.82;     // calidad WebP
@@ -55,6 +63,7 @@ export default function ImageUploader({ catalogId, itemId, images, onChange, onU
   const inputRef = useRef<HTMLInputElement>(null);
   const [tasks, setTasks] = useState<UploadTask[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
 
   // Always reflects the latest images prop — fixes stale closure on concurrent uploads
   const imagesRef = useRef(images);
@@ -69,11 +78,14 @@ export default function ImageUploader({ catalogId, itemId, images, onChange, onU
     setTasks((prev) => prev.map((t) => (t.name === name ? { ...t, ...patch } : t)));
   }
 
-  async function uploadFile(file: File) {
-    if (images.length + tasks.filter((t) => !t.error).length >= max) return;
+  async function uploadFile(file: File, batchMeta?: { total: number; currentIndex: number }): Promise<string | null> {
+    if (!file.type.startsWith('image/')) {
+      alert(`"${file.name}" no es una imagen compatible.`);
+      return null;
+    }
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
       alert(`"${file.name}" supera los ${MAX_SIZE_MB}MB permitidos.`);
-      return;
+      return null;
     }
 
     // Comprimir antes de subir (convierte a WebP ≤900px)
@@ -87,32 +99,78 @@ export default function ImageUploader({ catalogId, itemId, images, onChange, onU
     setTasks((prev) => [...prev, taskEntry]);
 
     const storageRef = ref(storage, storagePath);
-    const uploadTask = uploadBytesResumable(storageRef, toUpload, { contentType: toUpload.type });
+    const uploadTask = uploadBytesResumable(storageRef, toUpload, {
+      contentType: toUpload.type,
+      cacheControl: IMAGE_UPLOAD_CACHE_CONTROL,
+    });
 
-    uploadTask.on(
-      'state_changed',
-      (snap) => {
-        const progress = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-        updateTask(storageName, { progress });
-      },
-      (err) => {
-        updateTask(storageName, { error: err.message });
-      },
-      async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
-        onChange([...imagesRef.current, url]);
-        setTasks((prev) => prev.filter((t) => t.name !== storageName));
-      }
-    );
+    return new Promise((resolve) => {
+      uploadTask.on(
+        'state_changed',
+        (snap) => {
+          const progress = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+          updateTask(storageName, { progress });
+          if (batchMeta) {
+            setBatchProgress({
+              total: batchMeta.total,
+              currentIndex: batchMeta.currentIndex,
+              currentName: file.name,
+              fileProgress: progress,
+            });
+          }
+        },
+        (err) => {
+          updateTask(storageName, { error: err.message });
+          resolve(null);
+        },
+        async () => {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          setTasks((prev) => prev.filter((t) => t.name !== storageName));
+          resolve(url);
+        }
+      );
+    });
   }
 
-  function handleFiles(files: FileList | null) {
+  async function handleFiles(files: FileList | null) {
     if (!files) return;
-    Array.from(files).forEach(uploadFile);
+    const remainingSlots = Math.max(0, max - imagesRef.current.length);
+    if (remainingSlots === 0) return;
+
+    const selectedFiles = Array.from(files);
+    const limitedFiles = selectedFiles.slice(0, Math.min(MAX_BATCH, remainingSlots));
+
+    if (selectedFiles.length > limitedFiles.length) {
+      const batchLimit = Math.min(MAX_BATCH, remainingSlots);
+      alert(`Puedes subir hasta ${batchLimit} imágenes en esta tanda.`);
+    }
+
+    const uploadedUrls: string[] = [];
+    setBatchProgress({
+      total: limitedFiles.length,
+      currentIndex: 1,
+      currentName: limitedFiles[0]?.name ?? '',
+      fileProgress: 0,
+    });
+
+    for (const [index, file] of limitedFiles.entries()) {
+      const url = await uploadFile(file, { total: limitedFiles.length, currentIndex: index + 1 });
+      if (url) uploadedUrls.push(url);
+    }
+
+    if (uploadedUrls.length > 0) {
+      onChange([...imagesRef.current, ...uploadedUrls]);
+    }
+
+    setBatchProgress(null);
   }
 
   function removeImage(url: string) {
     onChange(images.filter((img) => img !== url));
+  }
+
+  function setCover(url: string) {
+    onChange([url, ...images.filter((img) => img !== url)]);
   }
 
   const canAdd = images.length + tasks.length < max;
@@ -124,7 +182,7 @@ export default function ImageUploader({ catalogId, itemId, images, onChange, onU
           Imágenes ({images.length}/{max})
         </label>
         {images.length > 0 && (
-          <span className="text-slate-500 text-xs">Arrastra para reordenar próximamente</span>
+          <span className="text-slate-500 text-xs">Elige la foto de portada o elimina fotos</span>
         )}
       </div>
 
@@ -140,11 +198,24 @@ export default function ImageUploader({ catalogId, itemId, images, onChange, onU
               />
               {/* Badge de primera imagen */}
               {i === 0 && (
-                <span className="absolute top-1 left-1 bg-purple-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                  portada
-                </span>
+                <div className="absolute left-1 right-1 top-1 flex justify-start">
+                  <span className="bg-purple-500/95 text-white text-[9px] font-bold px-2 py-1 rounded-md shadow-sm">
+                    Foto de portada
+                  </span>
+                </div>
+              )}
+              {i !== 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCover(url)}
+                  className="absolute bottom-1 left-1 right-1 bg-slate-900/82 hover:bg-slate-800 text-white text-[10px] font-semibold px-2 py-1 rounded-md transition-colors border border-white/10"
+                  title="Elegir como portada"
+                >
+                  Elegir portada
+                </button>
               )}
               <button
+                type="button"
                 onClick={() => removeImage(url)}
                 className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
                 title="Eliminar"
@@ -157,26 +228,58 @@ export default function ImageUploader({ catalogId, itemId, images, onChange, onU
       )}
 
       {/* Tareas en progreso */}
-      {tasks.length > 0 && (
-        <div className="space-y-1.5">
-          {tasks.map((task) => (
+      {(batchProgress || tasks.some((task) => task.error)) && (
+        <div className="space-y-2">
+          {batchProgress && (
+            <div className="bg-slate-800 rounded-xl p-3 border border-slate-700 flex items-center gap-3">
+              <div className="relative h-12 w-12 flex-shrink-0">
+                <svg viewBox="0 0 36 36" className="h-12 w-12 -rotate-90">
+                  <path
+                    d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"
+                    fill="none"
+                    stroke="rgba(148,163,184,0.22)"
+                    strokeWidth="3"
+                  />
+                  <path
+                    d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"
+                    fill="none"
+                    stroke="url(#uploadProgressGradient)"
+                    strokeWidth="3"
+                    strokeDasharray={`${Math.max(4, batchProgress.fileProgress)}, 100`}
+                    strokeLinecap="round"
+                  />
+                  <defs>
+                    <linearGradient id="uploadProgressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#a855f7" />
+                      <stop offset="100%" stopColor="#ec4899" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white">
+                  {batchProgress.currentIndex}/{batchProgress.total}
+                </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                  <span className="text-slate-200 font-semibold">Subiendo imágenes</span>
+                  <span className="text-slate-400">{batchProgress.fileProgress}%</span>
+                </div>
+                <p className="text-slate-400 text-xs truncate">
+                  Foto {batchProgress.currentIndex} de {batchProgress.total}: {batchProgress.currentName}
+                </p>
+                <div className="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden mt-2">
+                  <div
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-1.5 rounded-full transition-all duration-200"
+                    style={{ width: `${((batchProgress.currentIndex - 1) / batchProgress.total) * 100 + (batchProgress.fileProgress / batchProgress.total)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tasks.filter((task) => task.error).map((task) => (
             <div key={task.name} className="bg-slate-800 rounded-lg p-2">
-              {task.error ? (
-                <p className="text-red-400 text-xs">{task.error}</p>
-              ) : (
-                <>
-                  <div className="flex justify-between text-xs text-slate-400 mb-1">
-                    <span className="truncate max-w-[160px]">Subiendo...</span>
-                    <span>{task.progress}%</span>
-                  </div>
-                  <div className="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-1.5 rounded-full transition-all duration-200"
-                      style={{ width: `${task.progress}%` }}
-                    />
-                  </div>
-                </>
-              )}
+              <p className="text-red-400 text-xs">{task.error}</p>
             </div>
           ))}
         </div>
@@ -198,7 +301,7 @@ export default function ImageUploader({ catalogId, itemId, images, onChange, onU
           <span className="text-2xl">📷</span>
           <p className="text-slate-400 text-xs text-center">
             Haz clic o arrastra imágenes aquí<br />
-            <span className="text-slate-500">JPG, PNG, WebP, GIF · máx {MAX_SIZE_MB}MB</span>
+            <span className="text-slate-500">Hasta {MAX_BATCH} por tanda · máx {MAX_SIZE_MB}MB</span>
           </p>
         </div>
       )}
@@ -209,7 +312,7 @@ export default function ImageUploader({ catalogId, itemId, images, onChange, onU
         accept={ACCEPTED}
         multiple
         className="hidden"
-        onChange={(e) => handleFiles(e.target.files)}
+        onChange={(e) => { void handleFiles(e.target.files); e.target.value = ''; }}
       />
     </div>
   );

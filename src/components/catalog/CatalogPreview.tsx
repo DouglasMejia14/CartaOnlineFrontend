@@ -47,6 +47,40 @@ function isDarkBackground(theme: CatalogTheme): boolean {
   return true;
 }
 
+function getContrastTextColor(color: string): string {
+  const normalized = color.trim().toLowerCase();
+
+  if (normalized.startsWith('#')) {
+    const hex = normalized.slice(1);
+    const fullHex = hex.length === 3
+      ? hex.split('').map((char) => char + char).join('')
+      : hex;
+
+    if (fullHex.length === 6) {
+      const r = parseInt(fullHex.slice(0, 2), 16);
+      const g = parseInt(fullHex.slice(2, 4), 16);
+      const b = parseInt(fullHex.slice(4, 6), 16);
+      return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? '#111827' : '#ffffff';
+    }
+  }
+
+  const rgbMatch = normalized.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (rgbMatch) {
+    const [, r, g, b] = rgbMatch;
+    return (0.299 * Number(r) + 0.587 * Number(g) + 0.114 * Number(b)) / 255 > 0.62 ? '#111827' : '#ffffff';
+  }
+
+  return '#ffffff';
+}
+
+function UnavailableBadge() {
+  return (
+    <div className="absolute left-2 top-2 z-10 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+      No disponible
+    </div>
+  );
+}
+
 export default function CatalogPreview({ catalog, fullPage = false }: Props) {
   const { theme } = catalog;
   const bg = getBackground(theme);
@@ -58,6 +92,8 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [isBrandSheetOpen, setIsBrandSheetOpen] = useState(false);
+  const [brandQuery, setBrandQuery] = useState("");
   const [openItem, setOpenItem] = useState<CatalogItem | null>(null);
 
   // Canvas scaling (used only when layout === 'canvas')
@@ -83,6 +119,7 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
   const textColor = isDark ? "#ffffff" : "#111827";
   const subColor = isDark ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.55)";
   const headerBg = isDark ? "rgba(0,0,0,0.40)" : "rgba(255,255,255,0.40)";
+  const primaryTextColor = getContrastTextColor(theme.primaryColor);
   const alignClass = align === 'left' ? 'items-start' : align === 'right' ? 'items-end' : 'items-center';
   const textAlign = align as React.CSSProperties['textAlign'];
 
@@ -331,6 +368,9 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
   const availableBrands = [...new Set(
     catalog.items.map((i) => i.brand).filter((b): b is string => !!b)
   )].sort();
+  const filteredBrands = availableBrands.filter((brand) =>
+    brand.toLowerCase().includes(brandQuery.trim().toLowerCase())
+  );
 
   // -- Vista de marca: todos los productos de una marca (cross-categoría) ------
   if (selectedBrand !== null) {
@@ -498,26 +538,24 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
 
           {/* Brand filter */}
           {availableBrands.length > 0 && (
-            <div className="w-full">
-              <p style={{ color: subColor }} className="text-xs font-semibold uppercase tracking-widest mb-3 text-center">
-                Filtrar por marca
+            <div className="w-full flex flex-col items-center gap-2 pt-1">
+              <p style={{ color: subColor }} className="text-[11px] font-semibold uppercase tracking-[0.28em] text-center">
+                Explorar por marca
               </p>
-              <div className="flex flex-wrap justify-center gap-2">
-                {availableBrands.map((brand) => (
-                  <button
-                    key={brand}
-                    onClick={() => setSelectedBrand(brand)}
-                    className="px-4 py-1.5 rounded-full text-sm font-semibold border transition-all active:opacity-60"
-                    style={{
-                      borderColor: theme.primaryColor + '60',
-                      color: textColor,
-                      backgroundColor: theme.primaryColor + '15',
-                    }}
-                  >
-                    {brand}
-                  </button>
-                ))}
-              </div>
+              <button
+                onClick={() => setIsBrandSheetOpen(true)}
+                className="w-full py-3 px-6 rounded-full font-semibold text-sm border-2 active:opacity-60 transition-opacity"
+                style={{
+                  borderColor: theme.primaryColor,
+                  color: textColor,
+                  backgroundColor: btnBg,
+                }}
+              >
+                Ver marcas
+              </button>
+              <p style={{ color: subColor }} className="text-xs text-center leading-relaxed max-w-[18rem]">
+                {availableBrands.length} marcas para explorar
+              </p>
             </div>
           )}
 
@@ -548,6 +586,84 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
           )}
         </div>
       </div>
+      {isBrandSheetOpen && (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/55 px-4 py-4 sm:items-center">
+          <div
+            className="w-full max-w-xl rounded-[32px] border p-5 shadow-2xl backdrop-blur-xl"
+            style={{
+              borderColor: theme.primaryColor + '35',
+              backgroundColor: isDark ? 'rgba(12,12,12,0.92)' : 'rgba(255,255,255,0.94)',
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p style={{ color: textColor }} className="text-lg font-semibold">
+                  Filtrar por marca
+                </p>
+                <p style={{ color: subColor }} className="mt-1 text-sm">
+                  Busca tu marca
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsBrandSheetOpen(false);
+                  setBrandQuery('');
+                }}
+                className="rounded-full px-3 py-1.5 text-xs font-semibold transition-opacity active:opacity-60"
+                style={{
+                  color: textColor,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <input
+                value={brandQuery}
+                onChange={(event) => setBrandQuery(event.target.value)}
+                placeholder="Buscar marca"
+                className="w-full rounded-2xl border px-4 py-3 text-sm outline-none"
+                style={{
+                  borderColor: theme.primaryColor + '30',
+                  color: textColor,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                }}
+              />
+            </div>
+
+            <div className="mt-4 max-h-[55vh] overflow-y-auto pr-1">
+              {filteredBrands.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {filteredBrands.map((brand) => (
+                    <button
+                      key={brand}
+                      onClick={() => {
+                        setSelectedBrand(brand);
+                        setIsBrandSheetOpen(false);
+                        setBrandQuery('');
+                      }}
+                      className="px-4 py-2 rounded-full text-sm font-semibold border transition-all active:opacity-60"
+                      style={{
+                        borderColor: theme.primaryColor + '60',
+                        color: textColor,
+                        backgroundColor: theme.primaryColor + '15',
+                      }}
+                    >
+                      {brand}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: subColor }} className="py-8 text-center text-sm">
+                  No encontramos marcas con ese nombre.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {openItem && <ProductModal item={openItem} theme={theme} isDark={isDark} onClose={() => setOpenItem(null)} />}
       </>
     );
@@ -602,7 +718,7 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
               className="flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
               style={{
                 backgroundColor: !selectedSubcategory ? theme.primaryColor : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
-                color: !selectedSubcategory ? '#fff' : (isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
+                color: !selectedSubcategory ? primaryTextColor : (isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
               }}
             >
               Todo
@@ -616,7 +732,7 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
                   className="flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
                   style={{
                     backgroundColor: isActive ? theme.primaryColor : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
-                    color: isActive ? '#fff' : (isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
+                    color: isActive ? primaryTextColor : (isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
                   }}
                 >
                   {sub.name}
@@ -653,6 +769,7 @@ function ItemCard({
   onOpen: (item: CatalogItem) => void;
 }) {
   const images = item.images ?? [];
+  const isUnavailable = item.available === false;
   const cardBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)";
   const cardBorder = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
   const textColor = isDark ? "#ffffff" : "#111827";
@@ -666,10 +783,11 @@ function ItemCard({
     >
       {images.length > 0 && (
         <div className={`relative flex-shrink-0 w-16 h-16 ${radius} overflow-hidden bg-black/10`}>
+          {isUnavailable && <UnavailableBadge />}
           <img
             src={images[0]}
             alt={item.name}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover ${isUnavailable ? 'grayscale opacity-75' : ''}`}
             loading="lazy"
             decoding="async"
             onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }}
@@ -772,6 +890,7 @@ function GridCard({
   onOpen: (item: CatalogItem) => void;
 }) {
   const images = item.images ?? [];
+  const isUnavailable = item.available === false;
   const cardBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)";
   const cardBorder = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
   const textColor = isDark ? "#ffffff" : "#111827";
@@ -785,10 +904,11 @@ function GridCard({
     >
       {images.length > 0 && (
         <div className="relative aspect-square overflow-hidden flex-shrink-0 bg-black/10">
+          {isUnavailable && <UnavailableBadge />}
           <img
             src={images[0]}
             alt={item.name}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover ${isUnavailable ? 'grayscale opacity-75' : ''}`}
             loading="lazy"
             decoding="async"
             onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }}
@@ -840,6 +960,7 @@ function EditorialLayout({
   const cardBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)";
   const cardBorder = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
   const heroImages = hero.images ?? [];
+  const heroUnavailable = hero.available === false;
   const textColor = isDark ? "#ffffff" : "#111827";
 
   return (
@@ -853,10 +974,11 @@ function EditorialLayout({
         {heroImages.length > 0 ? (
           <>
             <div className="relative h-44 overflow-hidden bg-black/10">
+              {heroUnavailable && <UnavailableBadge />}
               <img
                 src={heroImages[0]}
                 alt={hero.name}
-                className="w-full h-full object-cover"
+                className={`w-full h-full object-cover ${heroUnavailable ? 'grayscale opacity-75' : ''}`}
                 loading="lazy"
                 decoding="async"
                 onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }}
@@ -955,6 +1077,7 @@ function ProductModal({
   const [imgIdx, setImgIdx] = useState(0);
   const images = item.images ?? [];
   const hasMany = images.length > 1;
+  const isUnavailable = item.available === false;
   const textColor = isDark ? "#ffffff" : "#111827";
   const subColor = isDark ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.55)";
   const modalBg = isDark ? "#141418" : "#ffffff";
@@ -987,10 +1110,11 @@ function ProductModal({
         {/* Gallery */}
         {images.length > 0 && (
           <div className="relative mx-4 rounded-2xl overflow-hidden bg-black/10" style={{ aspectRatio: "4/3" }}>
+            {isUnavailable && <UnavailableBadge />}
             <img
               src={images[imgIdx]}
               alt={`${item.name} ${imgIdx + 1}`}
-              className="w-full h-full object-contain"
+              className={`w-full h-full object-contain ${isUnavailable ? 'grayscale opacity-75' : ''}`}
               onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }}
             />
             {hasMany && (
@@ -1050,6 +1174,11 @@ function ProductModal({
           <h2 style={{ color: textColor }} className="text-xl font-bold leading-tight">
             {item.name}
           </h2>
+          {isUnavailable && (
+            <div style={{ color: subColor }} className="mt-2 text-xs font-semibold uppercase tracking-[0.22em]">
+              No disponible
+            </div>
+          )}
           {item.brand && (
             <span
               style={{ backgroundColor: theme.primaryColor + '20', color: theme.primaryColor }}
@@ -1071,7 +1200,7 @@ function ProductModal({
           {item.sizes && item.sizes.length > 0 && (
             <div className="mt-4">
               <div style={{ color: subColor }} className="text-xs font-semibold uppercase tracking-wider mb-2">
-                Tama�os / Tallas
+                {"Tama\u00f1os / Tallas"}
               </div>
               <div className="flex gap-2 flex-wrap">
                 {item.sizes.map((s) => (

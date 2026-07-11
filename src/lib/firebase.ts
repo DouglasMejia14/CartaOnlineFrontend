@@ -15,3 +15,5 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 export const storage = getStorage(app);
+
+export const IMAGE_UPLOAD_CACHE_CONTROL = 'public,max-age=31536000,immutable';
