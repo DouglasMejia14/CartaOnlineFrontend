@@ -85,18 +85,26 @@ function normalizeItems(catalog: Catalog): Catalog {
   };
 }
 
+function normalizeCatalogMeta(raw: Catalog | Record<string, unknown>): Catalog {
+  const catalog = raw as Catalog & Record<string, unknown>;
+  return {
+    ...catalog,
+    googleMaps: (catalog.googleMaps ?? catalog.google_maps ?? catalog.ubicacion ?? catalog.locationUrl ?? catalog.mapsUrl) as string | undefined,
+  };
+}
+
 export const catalogApi = {
   /** GET /api/catalogs → Catalog[] */
   list: (): Promise<Catalog[]> =>
-    req<Catalog[]>('/api/catalogs').then((cs) => cs.map(normalizeItems)),
+    req<Catalog[]>('/api/catalogs').then((cs) => cs.map((c) => normalizeItems(normalizeCatalogMeta(c)))),
 
   /** GET /api/catalogs/:id → Catalog */
   getById: (id: string): Promise<Catalog> =>
-    req<Catalog>(`/api/catalogs/${id}`).then(normalizeItems),
+    req<Catalog>(`/api/catalogs/${id}`).then((c) => normalizeItems(normalizeCatalogMeta(c))),
 
   /** GET /api/catalogs/slug/:slug → Catalog (vista pública, sin redirigir en 401) */
   getBySlug: (slug: string): Promise<Catalog> =>
-    reqPublic<Catalog>(`/api/catalogs/slug/${slug}`).then(normalizeItems),
+    reqPublic<Catalog>(`/api/catalogs/slug/${slug}`).then((c) => normalizeItems(normalizeCatalogMeta(c))),
 
   /**
    * POST /api/catalogs
@@ -117,7 +125,10 @@ export const catalogApi = {
   update: (id: string, data: Partial<Omit<Catalog, 'id' | 'slug' | 'createdAt'>>): Promise<Catalog> =>
     req(`/api/catalogs/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        ...(data.googleMaps !== undefined ? { google_maps: data.googleMaps } : {}),
+      }),
     }),
 
   /** DELETE /api/catalogs/:id → 204 No Content */

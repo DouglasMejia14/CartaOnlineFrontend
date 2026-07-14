@@ -488,6 +488,20 @@ export default function ThemePanel({ catalog, onChange }: Props) {
             className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 outline-none focus:border-purple-500 transition-colors text-xs"
           />
         </div>
+
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-slate-400 text-xs font-medium">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-emerald-400"><path d="M12 2a7 7 0 00-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 00-7-7zm0 9.5A2.5 2.5 0 1112 6a2.5 2.5 0 010 5.5z"/></svg>
+            Ubicación (Google Maps)
+          </label>
+          <input
+            type="url"
+            placeholder="https://maps.google.com/..."
+            value={catalog.googleMaps ?? ''}
+            onChange={(e) => onChange({ googleMaps: e.target.value || undefined })}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 outline-none focus:border-purple-500 transition-colors text-xs"
+          />
+        </div>
       </section>
     </div>
   );

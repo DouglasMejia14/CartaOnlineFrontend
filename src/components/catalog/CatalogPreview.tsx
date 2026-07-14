@@ -457,7 +457,7 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
 
   if (selectedCategory === null) {
     const btnBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
-    const hasSocial = catalog.instagram || catalog.facebook || catalog.tiktok;
+    const hasSocial = catalog.instagram || catalog.facebook || catalog.tiktok || catalog.googleMaps;
 
     return (
       <>
@@ -579,6 +579,11 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
                 {catalog.tiktok && (
                   <a href={catalog.tiktok} target="_blank" rel="noopener noreferrer" style={{ color: theme.primaryColor }}>
                     <SvgTiktok />
+                  </a>
+                )}
+                {catalog.googleMaps && (
+                  <a href={catalog.googleMaps} target="_blank" rel="noopener noreferrer" style={{ color: theme.primaryColor }}>
+                    <SvgMapPin />
                   </a>
                 )}
               </div>
@@ -1246,6 +1251,14 @@ function SvgTiktok() {
   return (
     <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
       <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.16 8.16 0 004.77 1.52V6.78a4.85 4.85 0 01-1-.09z"/>
+    </svg>
+  );
+}
+
+function SvgMapPin() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2a7 7 0 00-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 00-7-7zm0 9.5A2.5 2.5 0 1112 6a2.5 2.5 0 010 5.5z"/>
     </svg>
   );
 }

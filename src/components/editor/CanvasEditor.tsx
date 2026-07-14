@@ -36,6 +36,13 @@ interface DragState {
   startW: number;       startH: number;
 }
 
+interface AlignmentGuides {
+  vertical: number | null;
+  horizontal: number | null;
+}
+
+const ALIGN_SNAP_PX = 6;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,6 +80,7 @@ export default function CanvasEditor({ catalog, onChange }: Props) {
   const [selectedId, setSelectedId]   = useState<string | null>(null);
   const [drag, setDrag]               = useState<DragState | null>(null);
   const [local, setLocal]             = useState<CanvasElement[] | null>(null);
+  const [guides, setGuides]           = useState<AlignmentGuides>({ vertical: null, horizontal: null });
   const [imgUploading, setImgUploading] = useState(false);
   const [imgProgress, setImgProgress] = useState(0);
   const [showPicker, setShowPicker]   = useState(false);
@@ -254,6 +262,7 @@ export default function CanvasEditor({ catalog, onChange }: Props) {
       const el = saved.find((x) => x.id === id); if (!el) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       setDrag({ id, mode: 'resize', startClientX: e.clientX, startClientY: e.clientY, startX: el.x, startY: el.y, startW: el.w, startH: el.h });
+      setGuides({ vertical: null, horizontal: null });
       return;
     }
     if (itemEl) {
@@ -262,18 +271,88 @@ export default function CanvasEditor({ catalog, onChange }: Props) {
       e.currentTarget.setPointerCapture(e.pointerId);
       setSelectedId(id);
       setDrag({ id, mode: 'move', startClientX: e.clientX, startClientY: e.clientY, startX: el.x, startY: el.y, startW: el.w, startH: el.h });
+      setGuides({ vertical: null, horizontal: null });
       return;
     }
-    setSelectedId(null); setShowPicker(false);
+    setSelectedId(null); setShowPicker(false); setGuides({ vertical: null, horizontal: null });
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!drag) return;
     const dx = (e.clientX - drag.startClientX) / scale;
     const dy = (e.clientY - drag.startClientY) / scale;
-    const np: Partial<CanvasElement> = drag.mode === 'move'
-      ? { x: Math.max(0, Math.min(CW - drag.startW, drag.startX + dx)), y: Math.max(0, Math.min(CH - drag.startH, drag.startY + dy)) }
-      : { w: Math.max(40, Math.min(CW - drag.startX, drag.startW + dx)), h: Math.max(30, Math.min(CH - drag.startY, drag.startH + dy)) };
+
+    if (drag.mode === 'move') {
+      let nextX = Math.max(0, Math.min(CW - drag.startW, drag.startX + dx));
+      let nextY = Math.max(0, Math.min(CH - drag.startH, drag.startY + dy));
+
+      let vGuide: number | null = null;
+      let hGuide: number | null = null;
+
+      type AxisAnchor = 'start' | 'center' | 'end';
+      const xTargets: number[] = [CW / 2];
+      const yTargets: number[] = [CH / 2];
+
+      for (const other of saved) {
+        if (other.id === drag.id) continue;
+        xTargets.push(other.x, other.x + other.w / 2, other.x + other.w);
+        yTargets.push(other.y, other.y + other.h / 2, other.y + other.h);
+      }
+
+      const movingX = [
+        { anchor: 'start' as AxisAnchor, value: nextX },
+        { anchor: 'center' as AxisAnchor, value: nextX + drag.startW / 2 },
+        { anchor: 'end' as AxisAnchor, value: nextX + drag.startW },
+      ];
+      const movingY = [
+        { anchor: 'start' as AxisAnchor, value: nextY },
+        { anchor: 'center' as AxisAnchor, value: nextY + drag.startH / 2 },
+        { anchor: 'end' as AxisAnchor, value: nextY + drag.startH },
+      ];
+
+      let bestX: { target: number; anchor: AxisAnchor; diff: number } | null = null;
+      for (const m of movingX) {
+        for (const target of xTargets) {
+          const diff = Math.abs(m.value - target);
+          if (diff <= ALIGN_SNAP_PX && (!bestX || diff < bestX.diff)) {
+            bestX = { target, anchor: m.anchor, diff };
+          }
+        }
+      }
+
+      let bestY: { target: number; anchor: AxisAnchor; diff: number } | null = null;
+      for (const m of movingY) {
+        for (const target of yTargets) {
+          const diff = Math.abs(m.value - target);
+          if (diff <= ALIGN_SNAP_PX && (!bestY || diff < bestY.diff)) {
+            bestY = { target, anchor: m.anchor, diff };
+          }
+        }
+      }
+
+      if (bestX) {
+        if (bestX.anchor === 'start') nextX = bestX.target;
+        if (bestX.anchor === 'center') nextX = bestX.target - drag.startW / 2;
+        if (bestX.anchor === 'end') nextX = bestX.target - drag.startW;
+        nextX = Math.max(0, Math.min(CW - drag.startW, nextX));
+        vGuide = bestX.target;
+      }
+
+      if (bestY) {
+        if (bestY.anchor === 'start') nextY = bestY.target;
+        if (bestY.anchor === 'center') nextY = bestY.target - drag.startH / 2;
+        if (bestY.anchor === 'end') nextY = bestY.target - drag.startH;
+        nextY = Math.max(0, Math.min(CH - drag.startH, nextY));
+        hGuide = bestY.target;
+      }
+
+      setGuides({ vertical: vGuide, horizontal: hGuide });
+      setLocal(saved.map((el) => (el.id === drag.id ? { ...el, x: nextX, y: nextY } : el)));
+      return;
+    }
+
+    setGuides({ vertical: null, horizontal: null });
+    const np: Partial<CanvasElement> = { w: Math.max(40, Math.min(CW - drag.startX, drag.startW + dx)), h: Math.max(30, Math.min(CH - drag.startY, drag.startH + dy)) };
     setLocal(saved.map((el) => (el.id === drag.id ? { ...el, ...np } : el)));
   }
 
@@ -281,6 +360,7 @@ export default function CanvasEditor({ catalog, onChange }: Props) {
     e.currentTarget.releasePointerCapture(e.pointerId);
     if (drag && local) { saveElements(local); setLocal(null); }
     setDrag(null);
+    setGuides({ vertical: null, horizontal: null });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -362,6 +442,33 @@ export default function CanvasEditor({ catalog, onChange }: Props) {
                     y agrega texto, imágenes y productos encima
                   </p>
                 </div>
+              )}
+
+              {guides.vertical !== null && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: guides.vertical,
+                    top: 0,
+                    width: 1,
+                    height: CH,
+                    backgroundColor: 'rgba(167,139,250,0.85)',
+                    boxShadow: '0 0 0 1px rgba(167,139,250,0.2)',
+                  }}
+                />
+              )}
+              {guides.horizontal !== null && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: 0,
+                    top: guides.horizontal,
+                    width: CW,
+                    height: 1,
+                    backgroundColor: 'rgba(167,139,250,0.85)',
+                    boxShadow: '0 0 0 1px rgba(167,139,250,0.2)',
+                  }}
+                />
               )}
 
               {elements.map((el, idx) => (

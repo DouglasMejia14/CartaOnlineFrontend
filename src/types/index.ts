@@ -92,6 +92,7 @@ export interface Catalog {
   instagram?: string;
   facebook?: string;
   tiktok?: string;
+  googleMaps?: string;
   theme: CatalogTheme;
   items: CatalogItem[];
   categories: (string | Category)[];
