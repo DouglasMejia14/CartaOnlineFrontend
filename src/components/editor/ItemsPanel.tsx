@@ -27,6 +27,8 @@ export default function ItemsPanel({ catalog, onChange }: Props) {
   const [isNew, setIsNew] = useState(false);
   const [newCategory, setNewCategory] = useState('');
   const [newSubInputs, setNewSubInputs] = useState<Record<string, string>>({});
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'unavailable'>('all');
+  const [nameQuery, setNameQuery] = useState('');
   const [itemSaving, setItemSaving] = useState(false);
   const [itemSaveError, setItemSaveError] = useState<string | null>(null);
 
@@ -101,13 +103,23 @@ export default function ItemsPanel({ catalog, onChange }: Props) {
     });
   }
 
+  const normalizedQuery = nameQuery.trim().toLowerCase();
+  const filteredItems = catalog.items.filter((item) => {
+    const isAvailable = item.available ?? true;
+    const matchAvailability = availabilityFilter === 'all'
+      || (availabilityFilter === 'available' && isAvailable)
+      || (availabilityFilter === 'unavailable' && !isAvailable);
+    const matchName = normalizedQuery.length === 0 || item.name.toLowerCase().includes(normalizedQuery);
+    return matchAvailability && matchName;
+  });
+
   const grouped = catalog.categories.reduce<Record<string, CatalogItem[]>>((acc, cat) => {
     const catId = getCategoryId(cat);
-    acc[catId] = catalog.items.filter((i) => isItemInCategory(i.category, cat));
+    acc[catId] = filteredItems.filter((i) => isItemInCategory(i.category, cat));
     return acc;
   }, {});
 
-  const unassigned = catalog.items.filter(
+  const unassigned = filteredItems.filter(
     (i) => !i.category || !catalog.categories.some((c) => isItemInCategory(i.category, c))
   );
 
@@ -192,6 +204,29 @@ export default function ItemsPanel({ catalog, onChange }: Props) {
       >
         + Agregar {catalog.type === 'restaurant' ? 'plato' : 'producto'}
       </button>
+
+      {/* Filters */}
+      <section className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 space-y-2">
+        <label className="text-slate-300 font-semibold block text-xs">Filtrar productos</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <select
+            value={availabilityFilter}
+            onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'available' | 'unavailable')}
+            className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-purple-500 transition-colors text-xs"
+          >
+            <option value="all">Todos</option>
+            <option value="available">Solo disponibles</option>
+            <option value="unavailable">Solo no disponibles</option>
+          </select>
+          <input
+            type="text"
+            value={nameQuery}
+            onChange={(e) => setNameQuery(e.target.value)}
+            placeholder="Buscar por nombre..."
+            className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 outline-none focus:border-purple-500 transition-colors text-xs"
+          />
+        </div>
+      </section>
 
       {/* Items by category */}
       {catalog.categories.map((cat) => {
@@ -289,6 +324,10 @@ export default function ItemsPanel({ catalog, onChange }: Props) {
             ))}
           </div>
         </section>
+      )}
+
+      {filteredItems.length === 0 && (
+        <p className="text-slate-500 text-xs italic text-center py-2">No hay productos que coincidan con el filtro.</p>
       )}
 
       {/* Edit/Create modal */}
