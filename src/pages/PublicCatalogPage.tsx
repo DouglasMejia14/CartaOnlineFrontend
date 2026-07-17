@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { catalogApi } from "../services/catalogApi";
 import type { Catalog } from "../types";
@@ -8,13 +8,37 @@ export default function PublicCatalogPage() {
   const { slug } = useParams<{ slug: string }>();
   const [catalog, setCatalog] = useState<Catalog | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const visitTrackedRef = useRef(false);
 
   useEffect(() => {
     if (!slug) { setCatalog(null); return; }
+    let active = true;
+    visitTrackedRef.current = false;
     catalogApi
       .getBySlug(slug)
-      .then(setCatalog)
-      .catch((e: Error) => { setError(e.message); setCatalog(null); });
+      .then((data) => {
+        if (!active) return;
+        setCatalog(data);
+        if (visitTrackedRef.current) return;
+        visitTrackedRef.current = true;
+        // No bloquea la vista pública si falla el tracking de visitas.
+        catalogApi
+          .registerVisitBySlug(data.slug)
+          .then((visitResult) => {
+            if (!active || typeof visitResult?.visits !== "number") return;
+            setCatalog((prev) => (prev ? { ...prev, visits: visitResult.visits } : prev));
+          })
+          .catch(() => null);
+      })
+      .catch((e: Error) => {
+        if (!active) return;
+        setError(e.message);
+        setCatalog(null);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [slug]);
 
   if (catalog === undefined) {

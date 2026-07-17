@@ -176,16 +176,31 @@ function DashboardView() {
         <div className="grid gap-3">
           {catalogs.map((c) => (
             <div key={c.id} className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-4 flex items-center gap-3 flex-wrap sm:flex-nowrap">
-              <div
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex-shrink-0 border border-white/10"
-                style={{ background: c.theme?.bgValue ?? "#1a1a2e" }}
-              />
+              {c.logo ? (
+                <img
+                  src={c.logo}
+                  alt={`Logo de ${c.title}`}
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex-shrink-0 border border-white/10 object-cover bg-slate-900"
+                />
+              ) : (
+                <div
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex-shrink-0 border border-white/10"
+                  style={{ background: c.theme?.bgValue ?? "#1a1a2e" }}
+                />
+              )}
               <div className="flex-1 min-w-0">
                 <div className="text-white font-semibold truncate">{c.title}</div>
-                <div className="text-slate-400 text-xs mt-0.5 flex items-center gap-2">
+                <div className="text-slate-400 text-xs mt-1 flex items-center gap-2 flex-wrap">
                   <span>{c.type === "restaurant" ? "🍽️ Restaurante" : "📦 Productos"}</span>
                   <span>·</span>
                   <span>{c.items?.length ?? 0} items</span>
+                </div>
+                <div className="mt-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-400/15 border border-emerald-300/30 text-emerald-100 shadow-sm">
+                    <span aria-hidden="true" className="text-[11px] leading-none">👁️</span>
+                    <span className="font-bold text-xs leading-none">{c.visits ?? 0}</span>
+                    <span className="text-[11px] leading-none text-emerald-200/90">visitas</span>
+                  </span>
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto justify-end">

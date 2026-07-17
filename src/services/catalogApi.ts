@@ -3,6 +3,13 @@ import { authHeaders, clearSession } from '../lib/auth';
 
 const BASE: string = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
+export interface RegisterVisitResponse {
+  ok: boolean;
+  visits: number;
+  throttled?: boolean;
+  retryAfterSeconds?: number;
+}
+
 // Rutas protegidas — redirige a /login si recibe 401
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -27,12 +34,14 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 // Rutas públicas (ej: ver carta por slug) — NO redirige en 401
-async function reqPublic<T>(path: string): Promise<T> {
+async function reqPublic<T>(path: string, options?: RequestInit): Promise<T> {
   const token = authHeaders().Authorization;
   const res = await fetch(`${BASE}${path}`, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: token } : {}),
+      ...(options?.headers as Record<string, string> | undefined),
     },
   });
   if (!res.ok) {
@@ -89,7 +98,9 @@ function normalizeCatalogMeta(raw: Catalog | Record<string, unknown>): Catalog {
   const catalog = raw as Catalog & Record<string, unknown>;
   return {
     ...catalog,
+    logo: (catalog.logo ?? catalog.logoUrl ?? catalog.logo_url ?? catalog.businessLogo) as string | undefined,
     googleMaps: (catalog.googleMaps ?? catalog.google_maps ?? catalog.ubicacion ?? catalog.locationUrl ?? catalog.mapsUrl) as string | undefined,
+    visits: (catalog.visits ?? catalog.visitCount ?? catalog.visit_count ?? catalog.views ?? 0) as number,
   };
 }
 
@@ -105,6 +116,13 @@ export const catalogApi = {
   /** GET /api/catalogs/slug/:slug → Catalog (vista pública, sin redirigir en 401) */
   getBySlug: (slug: string): Promise<Catalog> =>
     reqPublic<Catalog>(`/api/catalogs/slug/${slug}`).then((c) => normalizeItems(normalizeCatalogMeta(c))),
+
+  /** POST /api/catalogs/slug/:slug/visit → incrementa visitas del catálogo */
+  registerVisitBySlug: (slug: string): Promise<RegisterVisitResponse> =>
+    reqPublic<RegisterVisitResponse>(`/api/catalogs/slug/${slug}/visit`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
 
   /**
    * POST /api/catalogs

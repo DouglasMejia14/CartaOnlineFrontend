@@ -87,6 +87,7 @@ export interface Catalog {
   slug: string;
   type: CatalogType;
   title: string;
+  visits?: number;
   description: string;
   logo?: string;
   instagram?: string;
