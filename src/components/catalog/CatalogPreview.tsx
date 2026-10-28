@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { Catalog, CatalogItem, CatalogTheme } from "../../types";
-import { getCategoryId, getCategoryName, isItemInCategory, formatPrice } from "../../utils/catalog";
+import { getCategoryId, getCategoryName, isItemInCategory, formatPrice, sortCategories, sortSubcategories } from "../../utils/catalog";
 
 // Canvas reference dimensions (must match CanvasEditor)
 const CANVAS_CW = 800;
@@ -151,12 +151,12 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
               Agrega productos desde el panel de edicion
             </p>
           ) : catalog.categories.length > 0 ? (
-            catalog.categories.map((cat) => {
+            sortCategories(catalog.categories).map((cat) => {
               const catId = getCategoryId(cat);
               const catName = getCategoryName(cat);
               const catItems = catalog.items.filter((i) => isItemInCategory(i.category, cat));
               if (catItems.length === 0) return null;
-              const subcategories = typeof cat !== 'string' ? cat.subcategories : [];
+              const subcategories = typeof cat !== 'string' ? sortSubcategories(cat.subcategories) : [];
               const hasSubcategories = subcategories.some((s) => catItems.some((i) => i.subcategoryId === s.id));
               return (
                 <section key={catId}>
@@ -681,9 +681,9 @@ export default function CatalogPreview({ catalog, fullPage = false }: Props) {
     ? catalog.items.filter((i) => isItemInCategory(i.category, currentCat))
     : catalog.items.filter((i) => i.category === selectedCategory);
 
-  const subcategories = (currentCat && typeof currentCat !== 'string') ? currentCat.subcategories : [];
+  const subcategories = (currentCat && typeof currentCat !== 'string') ? sortSubcategories(currentCat.subcategories) : [];
   // Only show subcategories that actually have items
-  const visibleSubs = subcategories.filter((s) => allCatItems.some((i) => i.subcategoryId === s.id));
+  const visibleSubs = sortSubcategories(subcategories.filter((s) => allCatItems.some((i) => i.subcategoryId === s.id)));
 
   // Items shown depend on selected subcategory tab
   const items = selectedSubcategory

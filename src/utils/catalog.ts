@@ -10,9 +10,26 @@ export const DEFAULT_THEME: CatalogTheme = {
   borderRadius: 'md',
 };
 
+/** Ordena subcategorías alfabéticamente ignorando mayúsculas y acentos */
+export function sortSubcategories<T extends { name: string }>(subcategories: T[]): T[] {
+  return [...subcategories].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+}
+
+export function sortCategorySubcategories(cat: Category): Category {
+  return {
+    ...cat,
+    subcategories: sortSubcategories(cat.subcategories),
+  };
+}
+
 /** Retorna el nombre legible de una entrada de categoría (string legacy u objeto nuevo) */
 export function getCategoryName(cat: string | Category): string {
   return typeof cat === 'string' ? cat : cat.name;
+}
+
+/** Ordena categorías alfabéticamente por nombre */
+export function sortCategories(categories: Array<string | Category>): Array<string | Category> {
+  return [...categories].sort((a, b) => getCategoryName(a).localeCompare(getCategoryName(b), 'es', { sensitivity: 'base' }));
 }
 
 /** Retorna el identificador de una entrada de categoría */
