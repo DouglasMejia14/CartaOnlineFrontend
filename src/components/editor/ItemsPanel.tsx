@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Catalog, CatalogItem, Category, Subcategory } from '../../types';
 import { catalogApi } from '../../services/catalogApi';
-import { getCategoryId, getCategoryName, isItemInCategory, formatPrice } from '../../utils/catalog';
+import { getCategoryId, getCategoryName, isItemInCategory, formatPrice, sortCategories, sortSubcategories } from '../../utils/catalog';
 import ImageUploader from './ImageUploader';
 
 interface Props {
@@ -73,7 +73,7 @@ export default function ItemsPanel({ catalog, onChange }: Props) {
     if (!name) return;
     if (catalog.categories.some((c) => getCategoryName(c) === name)) return;
     const newCat: Category = { id: uuidv4(), name, subcategories: [] };
-    onChange({ categories: [...catalog.categories, newCat] });
+    onChange({ categories: sortCategories([...catalog.categories, newCat]) });
     setNewCategory('');
   }
 
@@ -88,7 +88,7 @@ export default function ItemsPanel({ catalog, onChange }: Props) {
     onChange({
       categories: catalog.categories.map((c) => {
         if (typeof c === 'string' || c.id !== catId) return c;
-        return { ...c, subcategories: [...c.subcategories, newSub] };
+        return { ...c, subcategories: sortSubcategories([...c.subcategories, newSub]) };
       }),
     });
     setNewSubInputs((prev) => ({ ...prev, [catId]: '' }));
@@ -129,10 +129,10 @@ export default function ItemsPanel({ catalog, onChange }: Props) {
       <section className="space-y-3">
         <label className="text-slate-300 font-semibold block">Categorías</label>
 
-        {catalog.categories.map((c) => {
+        {sortCategories(catalog.categories).map((c) => {
           const catId = getCategoryId(c);
           const catName = getCategoryName(c);
-          const subcategories = typeof c === 'string' ? [] : c.subcategories;
+          const subcategories = typeof c === 'string' ? [] : sortSubcategories(c.subcategories);
           return (
             <div key={catId} className="bg-slate-800 border border-slate-700 rounded-xl p-3 space-y-2">
               {/* Category header */}
@@ -229,7 +229,7 @@ export default function ItemsPanel({ catalog, onChange }: Props) {
       </section>
 
       {/* Items by category */}
-      {catalog.categories.map((cat) => {
+      {sortCategories(catalog.categories).map((cat) => {
         const catId = getCategoryId(cat);
         const catName = getCategoryName(cat);
         const catItems = grouped[catId] ?? [];
@@ -437,7 +437,7 @@ function ItemEditModal({
           className="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2.5 text-white outline-none focus:border-purple-500 transition-colors"
         >
           <option value="">Sin categoría</option>
-          {categories.map((c) => {
+          {sortCategories(categories).map((c) => {
             const id = getCategoryId(c);
             const name = getCategoryName(c);
             return <option key={id} value={id}>{name}</option>;
@@ -447,7 +447,7 @@ function ItemEditModal({
         {/* Subcategory — only if selected category has subcategories */}
         {(() => {
           const selectedCat = categories.find((c) => getCategoryId(c) === form.category);
-          const subs = (selectedCat && typeof selectedCat !== 'string') ? selectedCat.subcategories : [];
+          const subs = (selectedCat && typeof selectedCat !== 'string') ? sortSubcategories(selectedCat.subcategories) : [];
           if (subs.length === 0) return null;
           return (
             <select
